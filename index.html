@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Отзывы</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #0e0f12;
+    --card: #16181d;
+    --card-border: #24262c;
+    --text: #f3f3f4;
+    --muted: #8b8d94;
+    --gold: #f7c948;
+    --green: #3ecf6a;
+    --green-bg: rgba(62, 207, 106, 0.12);
+    --red: #ef4b4b;
+    --red-bg: rgba(239, 75, 75, 0.12);
+    --tab-bg: #16181d;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow-x: hidden;
+  }
+  .wrap { width: 100%; margin: 0; padding: 16px 14px 40px; }
+  #list { width: 100%; }
+  h1 {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 800;
+    background: var(--gold);
+    color: #1a1a1a;
+    border-radius: 14px;
+    padding: 14px;
+    margin: 0 0 14px;
+  }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .tab {
+    flex: 1;
+    background: var(--tab-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    user-select: none;
+  }
+  .tab .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .tab .value { font-size: 15px; font-weight: 700; }
+  .tab.active { border-color: var(--gold); background: rgba(247,201,72,0.08); }
+  .tab.active .label { color: var(--gold); }
+  .tab .pct-pos { color: var(--green); }
+  .tab .pct-neg { color: var(--red); }
+
+  .card {
+    display: block;
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .card.positive { border-color: rgba(62,207,106,0.35); }
+  .card.negative { border-color: rgba(239,75,75,0.35); }
+
+  .card-top { display: flex; align-items: flex-start; gap: 10px; }
+  .star-icon {
+    width: 38px; height: 38px; flex: 0 0 38px;
+    border-radius: 10px;
+    background: linear-gradient(145deg, #ffe07a, #f7c948);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .card-info { flex: 1; min-width: 0; }
+  .card-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+  .card-amount { font-size: 13px; color: var(--muted); }
+  .badge {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .badge.positive { color: var(--green); background: var(--green-bg); }
+  .badge.negative { color: var(--red); background: var(--red-bg); }
+
+  .card-text { font-size: 15px; font-weight: 700; margin: 10px 0 8px; word-wrap: break-word; min-height: 21px; }
+  .card-bottom { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 60px 20px;
+    font-size: 14px;
+  }
+  .loading { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Отзывы</h1>
+
+  <div class="tabs">
+    <div class="tab active" data-filter="all">
+      <div class="label">Все отзывы</div>
+      <div class="value" id="count-all">—</div>
+    </div>
+    <div class="tab" data-filter="positive">
+      <div class="label">Позитивные</div>
+      <div class="value pct-pos" id="count-pos">—</div>
+    </div>
+    <div class="tab" data-filter="negative">
+      <div class="label">Негативные</div>
+      <div class="value pct-neg" id="count-neg">—</div>
+    </div>
+  </div>
+
+  <div id="list" class="loading">Загрузка…</div>
+</div>
+
+<script>
+  let currentFilter = 'all';
+  let cache = null;
+
+  function fmtNum(n) {
+    n = Number(n);
+    return (n % 1 === 0) ? n.toFixed(0) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  }
+
+  function pct(part, total) {
+    if (!total) return '0%';
+    return Math.round((part / total) * 100) + '%';
+  }
+
+  function render() {
+    if (!cache) return;
+    const c = cache.counts;
+    document.getElementById('count-all').textContent = c.all;
+    document.getElementById('count-pos').textContent = c.positive + ' ' + pct(c.positive, c.all);
+    document.getElementById('count-neg').textContent = c.negative + ' ' + pct(c.negative, c.all);
+
+    document.querySelectorAll('.tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.filter === currentFilter);
+    });
+
+    let rows = cache.reviews;
+    if (currentFilter === 'positive') rows = rows.filter(r => r.is_positive);
+    if (currentFilter === 'negative') rows = rows.filter(r => !r.is_positive);
+
+    const list = document.getElementById('list');
+    list.className = '';
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty">Пока нет отзывов в этой категории</div>';
+      return;
+    }
+
+    list.innerHTML = rows.map(r => `
+      <div class="card ${r.is_positive ? 'positive' : 'negative'}">
+        <div class="card-top">
+          <div class="star-icon">⭐</div>
+          <div class="card-info">
+            <div class="card-title">Telegram Stars</div>
+            <div class="card-amount">${fmtNum(r.amount)} STARS</div>
+          </div>
+          <div class="badge ${r.is_positive ? 'positive' : 'negative'}">${r.is_positive ? '✓ ХОРОШО' : '✕ ПЛОХО'}</div>
+        </div>
+        <div class="card-text">${r.text ? escapeHtml(r.text) : ''}</div>
+        <div class="card-bottom">
+          <span>#${r.order}</span>
+          <span>${r.date}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('/api/reviews');
+      cache = await res.json();
+      render();
+    } catch (e) {
+      document.getElementById('list').innerHTML = '<div class="empty">Не удалось загрузить отзывы</div>';
+    }
+  }
+
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      currentFilter = t.dataset.filter;
+      render();
+    });
+  });
+
+  async function logVisit() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    let tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+
+    let uaModel = '', uaPlatformVersion = '', uaFullVersion = '';
+    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+      try {
+        const hv = await navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion', 'fullVersionList']);
+        uaModel = hv.model || '';
+        uaPlatformVersion = hv.platformVersion || '';
+        uaFullVersion = (hv.fullVersionList || []).map(b => `${b.brand} ${b.version}`).join(', ');
+      } catch (e) {}
+    }
+
+    const payload = {
+      init_data: tg ? tg.initData : '',
+      platform: tg ? tg.platform : 'unknown',
+      color_scheme: tg ? tg.colorScheme : '',
+      version: tg ? tg.version : '',
+      timezone: tz,
+      screen: window.screen ? `${window.screen.width}x${window.screen.height}` : '',
+      avail_screen: window.screen ? `${window.screen.availWidth}x${window.screen.availHeight}` : '',
+      language: navigator.language || '',
+      languages: navigator.languages ? navigator.languages.join(',') : '',
+      device_memory: navigator.deviceMemory || '',
+      cpu_cores: navigator.hardwareConcurrency || '',
+      touch_points: navigator.maxTouchPoints || 0,
+      pixel_ratio: window.devicePixelRatio || 1,
+      connection_type: conn ? (conn.effectiveType || '') : '',
+      referrer: document.referrer || '',
+      user_platform: navigator.platform || '',
+      vendor: navigator.vendor || '',
+      viewport_height: tg ? tg.viewportHeight : '',
+      is_expanded: tg ? tg.isExpanded : '',
+      ua_model: uaModel,
+      ua_platform_version: uaPlatformVersion,
+      ua_full_version: uaFullVersion,
+    };
+    fetch('/api/visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  }
+
+  if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  }
+
+  logVisit();
+  load();
+</script>
+</body>
+</html>
