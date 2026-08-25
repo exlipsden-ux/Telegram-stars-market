@@ -1,4 +1,4 @@
-# almaz-bot
+# telegram-bot-stars
 
 Реферальный Telegram-бот на aiogram 3: задания, спонсоры, промокоды,
 VIP-уровни, рассылки, отзывы и админ-панель прямо в чате.
@@ -11,15 +11,8 @@ python -m venv .venv
 ```
 
 Настройки читаются из переменных окружения — список и описание в
-[`.env.example`](.env.example). Секретов в коде нет: без `ALMAZ_BOT_TOKEN`
-и `ROOT_OWNER_IDS` бот не стартует.
-
-```bash
-export ALMAZ_BOT_TOKEN=...
-export ROOT_OWNER_IDS=...
-.venv/bin/python main.py
+[`.env.example`](.env.example).
 ```
-
 ## Что внутри
 
 - `main.py` — весь бот: хендлеры, FSM, админ-панель, SQLite-слой, HTTP-эндпоинты
